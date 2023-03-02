@@ -4,8 +4,8 @@ import csv
 from urllib.parse import urlparse, urljoin
 
 # Set the maximum number of URLs to fetch
-MAX_URLS = 20
-
+MAX_URLS = 20000
+MAX_DEPTH = 16
 # Set the URL of the website to crawl
 base_url = 'https://www.nytimes.com/'
 
@@ -24,6 +24,20 @@ all_urls = set()
 
 # Initialize a counter for the number of fetched URLs
 url_count = 0
+
+# Initialize counters for fetch statistics
+fetch_attempted = 0
+fetch_succeeded = 0
+fetch_failed_aborted = 0
+
+# Initialize counters for URL statistics
+total_urls_extracted = 0
+unique_urls_extracted = set()
+unique_urls_within_news_site = set()
+unique_urls_outside_news_site = set()
+
+# Initialize dictionary to store status codes and their counts
+status_code_counts = {}
 
 # Define a function to check if a URL is valid and belongs to the website
 def is_valid(url):
@@ -93,40 +107,56 @@ while url_count < MAX_URLS and url_list:
     url_list.append(url)
     status_list.append(status)
 
-    # If the status code is 200, visit the URL and collect its information
+    # If the status code is not None, increment the fetch_attempted counter
+    if status is not None:
+        fetch_attempted += 1
+
+    # If the status code is 200, increment the fetch_succeeded counter and visit the URL
     if status == 200:
-        visit_url(url)
+        fetch_succeeded += 1
 
-        # Get all links from the web page and add them to the URL list
-        links = get_all_links(requests.get(url).content)
-        for link in links:
-            if link not in all_urls:
-                url_list.append(link)
-                all_urls.add(link)
-
-    # Increment the URL counter
-    url_count += 1
-
-# Write the fetch information to a CSV file
-with open('fetch_NYTimes.csv', 'w', newline='') as file:
+#Write the fetch statistics to a CSV file
+with open('fetch_statistics.csv', 'w', newline='') as file:
     writer = csv.writer(file)
-    writer.writerow(['URL', 'Status'])
-    for url, status in zip(url_list, status_list):
-        writer.writerow([url, status])
+    writer.writerow(['# Fetches Attempted', '# Fetches Succeeded', '# Fetches Failed/Aborted'])
+    writer.writerow([url_count, status_list.count(200), url_count - status_list.count(200)])
 
-#Write the visit information to a CSV file
-with open('visit_NYTimes.csv', 'w', newline='') as file:
+#Write the URLs extracted statistics to a CSV file
+with open('urls_extracted_statistics.csv', 'w', newline='') as file:
     writer = csv.writer(file)
-    writer.writerow(['URL', 'Size (Bytes)', 'Outlinks Count', 'Content-Type'])
-    for url, size, outlinks, content_type in zip(visited_list, size_list, outlinks_list, content_type_list):
-        writer.writerow([url, size, outlinks, content_type])
+    writer.writerow(['Total URLs Extracted', '# Unique URLs Extracted', '# Unique URLs Within News Website', '# Unique URLs Outside News Website'])
+    writer.writerow([len(all_urls), len(set(all_urls)), len(website_urls), len(set(all_urls) - set(website_urls))])
 
-#Write the encountered URLs to a CSV file
-with open('urls_NYTimes.csv', 'w', newline='') as file:
+#Write the status codes statistics to a CSV file
+with open('status_codes_statistics.csv', 'w', newline='') as file:
     writer = csv.writer(file)
-    writer.writerow(['URL', 'Indicator'])
-    for url in all_urls:
-        if is_valid(url):
-            writer.writerow([url, 'OK'])
-        else:
-            writer.writerow([url, 'N_OK'])
+    writer.writerow(['Status Code', 'Count'])
+    status_codes = set(status_list)
+    for status_code in status_codes:
+        writer.writerow([status_code, status_list.count(status_code)])
+
+#Write the file sizes statistics to a CSV file
+with open('file_sizes_statistics.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['File Size Range', 'Number of Files'])
+        file_sizes = [0, 1024, 1024*1024]
+        file_size_ranges = [f'{file_sizes[i]}-{file_sizes[i+1]} Bytes' for i in range(len(file_sizes)-1)]
+        file_size_ranges.append(f'{file_sizes[-1]}+ Bytes')
+        file_size_counts = [0] * len(file_size_ranges)
+        for size in size_list:
+            for i, file_size in enumerate(file_sizes):
+                if size < file_size:
+                    file_size_counts[i] += 1
+                    break
+                else:
+                    file_size_counts[-1] += 1
+        for file_size_range, count in zip(file_size_ranges, file_size_counts):
+            writer.writerow([file_size_range, count])
+
+Write the content types statistics to a CSV file
+with open('content_types_statistics.csv', 'w', newline='') as file:
+writer = csv.writer(file)
+writer.writerow(['Content Type', 'Count'])
+content_types = set(content_type_list)
+for content_type in content_types:
+writer.writerow([content_type, content_type_list.count(content_type)])
