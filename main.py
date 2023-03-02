@@ -153,10 +153,10 @@ with open('file_sizes_statistics.csv', 'w', newline='') as file:
         for file_size_range, count in zip(file_size_ranges, file_size_counts):
             writer.writerow([file_size_range, count])
 
-Write the content types statistics to a CSV file
+#Write the content types statistics to a CSV file
 with open('content_types_statistics.csv', 'w', newline='') as file:
-writer = csv.writer(file)
-writer.writerow(['Content Type', 'Count'])
-content_types = set(content_type_list)
-for content_type in content_types:
-writer.writerow([content_type, content_type_list.count(content_type)])
+    writer = csv.writer(file)
+    writer.writerow(['Content Type', 'Count'])
+    content_types = set(content_type_list)
+    for content_type in content_types:
+        writer.writerow([content_type, content_type_list.count(content_type)])
