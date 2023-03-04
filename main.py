@@ -6,6 +6,7 @@ import csv
 from urllib.parse import urlparse, urljoin
 from collections import Counter
 import time
+from requests import status_codes
 
 #Fetch statistics
 n_fetches_attempted = 0
@@ -82,7 +83,9 @@ def fetch_url(zipped_url):
         url_count += 1
         n_fetches_attempted += 1
         url_attempted_with_status.append((url,status))
-        HTTP_status_counter[status] += 1
+        status_text = status_codes._codes[status][0] if status in status_codes._codes else ''
+        status_str = f"{status} {status_text}"
+        HTTP_status_counter[status_str] += 1
         if status == 200:
             n_fetches_succeeded += 1
         else:        
@@ -90,7 +93,7 @@ def fetch_url(zipped_url):
 
     if status == 200:
 
-        content_type = response.headers.get('content-type')
+        content_type = response.headers.get('content-type').split(';')[0].strip()
         size = len(response.content)
 
         if 'text/html' in content_type:        
@@ -171,7 +174,7 @@ with open('urls_NYTimes.csv', 'w', newline='', encoding='utf-8') as file:
         else:
             writer.writerow([url, 'N_OK'])
 
-with open('answer.txt', 'w') as f:
+with open('CrawlReport_nytimes.txt', 'w') as f:
     # Write personal information
     f.write("Name: Shuyuan Hu\n")
     f.write("USC ID: 2512145714\n")
