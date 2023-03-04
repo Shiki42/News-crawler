@@ -21,7 +21,7 @@ n_fetches_failed_or_aborted = 0
 n_total_URLs_extracted = 0
 
 # Set the maximum number of URLs to fetch
-MAX_URLS = 20000
+MAX_URLS = 2000
 MAX_DEPTH = 16
 
 # Set the URL of the website to crawl
@@ -62,13 +62,23 @@ def is_inside(url):
     return bool(urlparse(url).netloc) and urlparse(url).netloc == urlparse(base_url).netloc
 
 def is_valid_url(url):
-    # Define a regular expression pattern to match against URLs with extensions for HTML, doc, pdf and image
-    valid_extensions = r'\.(html|doc|pdf|png|jpg|jpeg|gif)$'
-    # Use regex to check if the URL ends with one of the valid extensions
-    if re.search(valid_extensions, url):
-        return True
+    """
+    Returns True if the URL is valid and belongs to the website and has a valid file extension,
+    False otherwise.
+    """
+    # Define a regular expression pattern to match against URLs with extensions for HTML, doc, pdf, png, jpg, jpeg, and gif
+    valid_extensions = r'\.(html|doc|pdf|png|jpe?g|gif)(\?.*)?(#.*)?'
+    
+    parsed = urlparse(url)
+    # Check if the URL has a file extension
+    if '.' in parsed.path:
+        # Use regex to check if the file extension is valid
+        if re.search(valid_extensions, parsed.path):
+            return True
+        else:
+            return False
     else:
-        return False
+        return True
 
 # Define a function to visit a URL and collect its information
 def fetch_url():
@@ -137,6 +147,7 @@ def fetch_url():
             content_type_counter[content_type] += 1
 
     url_queue.task_done()
+
 # Define a function to extract all links from a web page
 def get_all_links(html):
     """
@@ -163,21 +174,23 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
         executor.submit(fetch_url)
                 
 
-with open('fetch_NYTimes.csv', 'w', newline='', encoding='utf-8') as file:
+with open('fetch_nytimes.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
-    writer.writerow(['URL', 'Status'])
+    writer.writerow(['URL', 'HTTP/HTTPS status code'])
     for url, status in url_attempted_with_status:
         writer.writerow([url, status])
 
 #Write the visit information to a CSV file
-with open('visit_NYTimes.csv', 'w', newline='', encoding='utf-8') as file:
+with open('visit_nytimes.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
+    print('sum of outlinks:')
+    print(sum(outlinks_list))
     writer.writerow(['URL', 'Size (Bytes)', 'Outlinks Count', 'Content-Type'])
     for url, size, outlinks, content_type in zip(success_url_list, size_list, outlinks_list, content_type_list):
         writer.writerow([url, size, outlinks, content_type])
 
 #Write the encountered URLs to a CSV file
-with open('urls_NYTimes.csv', 'w', newline='', encoding='utf-8') as file:
+with open('urls_nytimes.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
     writer.writerow(['URL', 'Indicator'])
     for url in all_urls:
