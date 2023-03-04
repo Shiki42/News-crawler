@@ -1,5 +1,6 @@
 import concurrent.futures
 import threading
+import queue
 import requests
 from bs4 import BeautifulSoup
 import csv
@@ -15,12 +16,9 @@ n_fetches_failed_or_aborted = 0
 
 #Outgoing URLs
 n_total_URLs_extracted = 0
-n_unique_URLs_extracted = 0
-n_unique_URLs_within = 0
-n_unique_URLs_outside = 0
 
 # Set the maximum number of URLs to fetch
-MAX_URLS = 200
+MAX_URLS = 20000
 MAX_DEPTH = 16
 
 # Set the URL of the website to crawl
@@ -31,7 +29,7 @@ unique_outside_urls = set()
 unique_inside_urls = set()
 HTTP_status_counter = Counter()
 content_type_counter = Counter()
-url_queue = []
+url_queue = queue.Queue()
 
 url_attempted = set()
 url_attempted_with_status = []
@@ -44,7 +42,6 @@ content_type_list = []
 
 url_count = 0
 
-queue_url_lock = threading.Lock()
 all_url_lock = threading.Lock()
 success_url_lock = threading.Lock()
 attempted_url_lock = threading.Lock()
@@ -59,28 +56,31 @@ def is_inside(url):
     return bool(parsed.netloc) and parsed.netloc == urlparse(base_url).netloc
 
 # Define a function to visit a URL and collect its information
-def fetch_url(zipped_url):
+def fetch_url():
     """
     Sends a GET request to the URL, collects its information,
     and appends the information to the respective lists.
     """
-    url, depth = zipped_url
-
-    time.sleep(2)
 
     global n_fetches_attempted, n_fetches_succeeded, n_fetches_failed_or_aborted, \
-           n_total_URLs_extracted, n_unique_URLs_extracted, n_unique_URLs_within, \
-           n_unique_URLs_outside, url_count
+       n_total_URLs_extracted, n_unique_URLs_extracted, n_unique_URLs_within, \
+       n_unique_URLs_outside, url_count, url_queue, MAX_DEPTH
+
+    try:
+        url, depth = url_queue.get(timeout=5)
+    except queue.Empty:
+        return   
+    
+    time.sleep(10)
 
     response = requests.get(url)
         
     status = response.status_code
 
-    with queue_url_lock:
-        url_attempted.add(url)
-
     with attempted_url_lock:
+        url_attempted.add(url)
         url_count += 1
+        print(url_count)
         n_fetches_attempted += 1
         url_attempted_with_status.append((url,status))
         status_text = status_codes._codes[status][0] if status in status_codes._codes else ''
@@ -105,9 +105,9 @@ def fetch_url(zipped_url):
                         n_total_URLs_extracted += 1
                         if is_inside(i):
                             unique_inside_urls.add(i)
-                            if i not in url_attempted and depth <= 16:
-                                with queue_url_lock:
-                                    url_queue.append((i,depth+1))
+                            with attempted_url_lock:
+                                if i not in url_attempted and depth <= MAX_DEPTH:                                
+                                    url_queue.put((i,depth+1))
                         else:
                             unique_inside_urls.add(i)
 
@@ -119,7 +119,9 @@ def fetch_url(zipped_url):
             success_url_list.append(url)
             size_list.append(size)        
             content_type_list.append(content_type)
+            content_type_counter[content_type] += 1
 
+    url_queue.task_done()
 # Define a function to extract all links from a web page
 def get_all_links(html):
     """
@@ -135,21 +137,16 @@ def get_all_links(html):
     return links
 
 # Add the base URL to the URL list
-url_queue.append((base_url,1))
+url_queue.put((base_url,1))
 
 # Process each URL in the list until the maximum number of URLs is reached
 with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
 
-    while url_count < MAX_URLS and url_queue:
-        # Get the next URL from the list
-        with queue_url_lock:
-            url = url_queue.pop(0)        
+    for i in range(MAX_URLS):
 
         # Fetch the URL and get its status code
-        executor.submit(fetch_url, url)
-
-        # Increment the URL counter                
-        print(url_count)
+        executor.submit(fetch_url)
+                
 
 with open('fetch_NYTimes.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
@@ -192,9 +189,9 @@ with open('CrawlReport_nytimes.txt', 'w') as f:
     f.write("Outgoing URLs:\n")
     f.write("==============\n")
     f.write("Total URLs extracted: {}\n".format(n_total_URLs_extracted))
-    f.write("# unique URLs extracted: {}\n".format(n_unique_URLs_extracted))
-    f.write("# unique URLs within News Site: {}\n".format(n_unique_URLs_within))
-    f.write("# unique URLs outside News Site: {}\n\n".format(n_unique_URLs_outside))
+    f.write("# unique URLs extracted: {}\n".format(len(unique_inside_urls)+len(unique_outside_urls)))
+    f.write("# unique URLs within News Site: {}\n".format(len(unique_inside_urls)))
+    f.write("# unique URLs outside News Site: {}\n\n".format(len(unique_outside_urls)))
 
     # Write status codes
     f.write("Status Codes:\n")
