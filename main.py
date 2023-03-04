@@ -171,3 +171,53 @@ with open('urls_NYTimes.csv', 'w', newline='', encoding='utf-8') as file:
         else:
             writer.writerow([url, 'N_OK'])
 
+with open('answer.txt', 'w') as f:
+    # Write personal information
+    f.write("Name: Shuyuan Hu\n")
+    f.write("USC ID: 2512145714\n")
+    f.write("News site crawled: nytimes.com\n")
+    f.write("Number of threads: 16\n\n")
+
+    # Write fetch statistics
+    f.write("Fetch Statistics\n")
+    f.write("================\n")
+    f.write("# fetches attempted: {}\n".format(n_fetches_attempted))
+    f.write("# fetches succeeded: {}\n".format(n_fetches_succeeded))
+    f.write("# fetches failed or aborted: {}\n\n".format(n_fetches_failed_or_aborted))
+
+    # Write outgoing URLs
+    f.write("Outgoing URLs:\n")
+    f.write("==============\n")
+    f.write("Total URLs extracted: {}\n".format(n_total_URLs_extracted))
+    f.write("# unique URLs extracted: {}\n".format(n_unique_URLs_extracted))
+    f.write("# unique URLs within News Site: {}\n".format(n_unique_URLs_within))
+    f.write("# unique URLs outside News Site: {}\n\n".format(n_unique_URLs_outside))
+
+    # Write status codes
+    f.write("Status Codes:\n")
+    f.write("=============\n")
+    for code, count in HTTP_status_counter.items():
+        f.write("{}: {}\n".format(code, count))
+    f.write("\n")
+
+    # Write file sizes
+    f.write("File Sizes:\n")
+    f.write("===========\n")
+    size_ranges = [
+        ("< 1KB", lambda size: size < 1024),
+        ("1KB ~ <10KB", lambda size: 1024 <= size < 10240),
+        ("10KB ~ <100KB", lambda size: 10240 <= size < 102400),
+        ("100KB ~ <1MB", lambda size: 102400 <= size < 1048576),
+        (">= 1MB", lambda size: size >= 1048576)
+    ]
+    for name, size_range in size_ranges:
+        count = sum(1 for size in size_list if size_range(size))
+        f.write("{}: {}\n".format(name, count))
+    f.write("\n")
+
+    # Write content types
+    f.write("Content Types:\n")
+    f.write("===============\n")
+    for content_type, count in content_type_counter.items():
+        f.write("{}: {}\n".format(content_type, count))
+    f.write("\n")
