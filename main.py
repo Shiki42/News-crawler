@@ -1,3 +1,5 @@
+import concurrent.futures
+import threading
 import requests
 from bs4 import BeautifulSoup
 import csv
@@ -41,6 +43,11 @@ content_type_list = []
 
 url_count = 0
 
+queue_url_lock = threading.Lock()
+all_url_lock = threading.Lock()
+success_url_lock = threading.Lock()
+attempted_url_lock = threading.Lock()
+
 # Define a function to check if a URL is valid and belongs to the website
 def is_inside(url):
     """
@@ -51,46 +58,64 @@ def is_inside(url):
     return bool(parsed.netloc) and parsed.netloc == urlparse(base_url).netloc
 
 # Define a function to visit a URL and collect its information
-def fetch_url(url, depth):
+def fetch_url(zipped_url):
     """
     Sends a GET request to the URL, collects its information,
     and appends the information to the respective lists.
     """
-    global n_fetches_attempted, n_fetches_succeeded, n_fetches_failed_or_aborted, n_total_URLs_extracted
+    url, depth = zipped_url
+
+    time.sleep(2)
+
+    global n_fetches_attempted, n_fetches_succeeded, n_fetches_failed_or_aborted, \
+           n_total_URLs_extracted, n_unique_URLs_extracted, n_unique_URLs_within, \
+           n_unique_URLs_outside, url_count
 
     response = requests.get(url)
-    n_fetches_attempted += 1    
+        
     status = response.status_code
 
-    url_attempted.add(url)
-    url_attempted_with_status.append((url,status))
+    with queue_url_lock:
+        url_attempted.add(url)
+
+    with attempted_url_lock:
+        url_count += 1
+        n_fetches_attempted += 1
+        url_attempted_with_status.append((url,status))
+        HTTP_status_counter[status] += 1
+        if status == 200:
+            n_fetches_succeeded += 1
+        else:        
+            n_fetches_failed_or_aborted += 1
 
     if status == 200:
-        n_fetches_succeeded += 1
+
         content_type = response.headers.get('content-type')
         size = len(response.content)
 
         if 'text/html' in content_type:        
             outlinks = get_all_links(response.content)
-            outlinks_list.append(len(outlinks))
-            for i in outlinks:
-                all_urls.append(i)
-                n_total_URLs_extracted += 1
-                if is_inside(i):
-                    unique_inside_urls.add(i)
-                    if i not in url_attempted and depth <= 16:
-                        url_queue.append((i,depth+1))
-                else:
-                    unique_inside_urls.add(i)
-        else:
-            outlinks_list.append(0)
 
-        success_url_list.append(url)
-        size_list.append(size)        
-        content_type_list.append(content_type)
+            with all_url_lock:                
+                    for i in outlinks:
+                        all_urls.append(i)
+                        n_total_URLs_extracted += 1
+                        if is_inside(i):
+                            unique_inside_urls.add(i)
+                            if i not in url_attempted and depth <= 16:
+                                with queue_url_lock:
+                                    url_queue.append((i,depth+1))
+                        else:
+                            unique_inside_urls.add(i)
 
-    else:        
-        n_fetches_failed_or_aborted += 1
+        with success_url_lock:
+            if 'text/html' not in content_type:
+                outlinks_list.append(0) 
+            else:
+                outlinks_list.append(len(outlinks))
+            success_url_list.append(url)
+            size_list.append(size)        
+            content_type_list.append(content_type)
 
 # Define a function to extract all links from a web page
 def get_all_links(html):
@@ -110,19 +135,19 @@ def get_all_links(html):
 url_queue.append((base_url,1))
 
 # Process each URL in the list until the maximum number of URLs is reached
-while url_count <= MAX_URLS and url_queue:
-    # Get the next URL from the list
-    url = url_queue.pop(0)
-    
+with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
 
-    # Fetch the URL and get its status code
-    fetch_url(url[0],url[1])
+    while url_count < MAX_URLS and url_queue:
+        # Get the next URL from the list
+        with queue_url_lock:
+            url = url_queue.pop(0)        
 
-    # Increment the URL counter
-    url_count += 1
-    time.sleep(1)
-    print(url_count)
-    
+        # Fetch the URL and get its status code
+        executor.submit(fetch_url, url)
+
+        # Increment the URL counter                
+        print(url_count)
+
 with open('fetch_NYTimes.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
     writer.writerow(['URL', 'Status'])
@@ -145,3 +170,4 @@ with open('urls_NYTimes.csv', 'w', newline='', encoding='utf-8') as file:
             writer.writerow([url, 'OK'])
         else:
             writer.writerow([url, 'N_OK'])
+
