@@ -1,20 +1,23 @@
-import concurrent.futures
-import threading
 import queue
+import threading
+import concurrent.futures
+
+import re
+import csv
+import time
+from collections import Counter
+
 import requests
 from bs4 import BeautifulSoup
-import csv
-from urllib.parse import urlparse, urljoin
-from collections import Counter
-import time
 from requests import status_codes
+from urllib.parse import urlparse, urljoin
+
 
 #Fetch statistics
 n_fetches_attempted = 0
 n_fetches_succeeded = 0
 n_fetches_failed_or_aborted = 0
 
-#Outgoing URLs
 n_total_URLs_extracted = 0
 
 # Set the maximum number of URLs to fetch
@@ -53,7 +56,19 @@ def is_inside(url):
     False otherwise.
     """
     parsed = urlparse(url)
-    return bool(parsed.netloc) and parsed.netloc == urlparse(base_url).netloc
+    if not parsed.netloc:
+        # Construct an absolute URL using the base URL and the relative URL
+        url = urljoin(base_url, url)
+    return bool(urlparse(url).netloc) and urlparse(url).netloc == urlparse(base_url).netloc
+
+def is_valid_url(url):
+    # Define a regular expression pattern to match against URLs with extensions for HTML, doc, pdf and image
+    valid_extensions = r'\.(html|doc|pdf|png|jpg|jpeg|gif)$'
+    # Use regex to check if the URL ends with one of the valid extensions
+    if re.search(valid_extensions, url):
+        return True
+    else:
+        return False
 
 # Define a function to visit a URL and collect its information
 def fetch_url():
@@ -71,7 +86,7 @@ def fetch_url():
     except queue.Empty:
         return   
     
-    time.sleep(10)
+    time.sleep(1)
 
     response = requests.get(url)
         
@@ -106,10 +121,10 @@ def fetch_url():
                         if is_inside(i):
                             unique_inside_urls.add(i)
                             with attempted_url_lock:
-                                if i not in url_attempted and depth <= MAX_DEPTH:                                
+                                if i not in url_attempted and depth <= MAX_DEPTH and is_valid_url(i):                                
                                     url_queue.put((i,depth+1))
                         else:
-                            unique_inside_urls.add(i)
+                            unique_outside_urls.add(i)
 
         with success_url_lock:
             if 'text/html' not in content_type:
