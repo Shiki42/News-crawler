@@ -21,7 +21,7 @@ n_fetches_failed_or_aborted = 0
 n_total_URLs_extracted = 0
 
 # Set the maximum number of URLs to fetch
-MAX_URLS = 2000
+MAX_URLS = 20000
 MAX_DEPTH = 16
 
 # Set the URL of the website to crawl
@@ -96,7 +96,7 @@ def fetch_url():
     except queue.Empty:
         return   
     
-    time.sleep(1)
+    time.sleep(2)
 
     response = requests.get(url)
         
@@ -149,6 +149,21 @@ def fetch_url():
     url_queue.task_done()
 
 # Define a function to extract all links from a web page
+
+def get_all_links(html):
+    """
+    Parses the HTML content and returns all links in the content.
+    """
+    soup = BeautifulSoup(html, 'html.parser')
+    links = []
+    for tag in soup.select('[href]'):
+        href = tag.get('href')
+        if href is not None:
+            href = urljoin(base_url, href)
+            links.append(href)
+    return links
+
+'''
 def get_all_links(html):
     """
     Parses the HTML content and returns all links in the content.
@@ -161,12 +176,12 @@ def get_all_links(html):
             href = urljoin(base_url, href)
             links.append(href)
     return links
-
+'''
 # Add the base URL to the URL list
 url_queue.put((base_url,1))
 
 # Process each URL in the list until the maximum number of URLs is reached
-with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
 
     for i in range(MAX_URLS):
 
