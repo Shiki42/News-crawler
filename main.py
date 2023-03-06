@@ -21,10 +21,12 @@ n_fetches_failed_or_aborted = 0
 n_total_URLs_extracted = 0
 
 # Set the maximum number of URLs to fetch
-MAX_URLS = 100
+MAX_URLS = 20000
 MAX_DEPTH = 16
+n_threads = 4
 
 # Set the URL of the website to crawl
+news_site = 'foxnews'
 origin_url = 'https://www.foxnews.com/'
 base_url_parts = urlparse(origin_url)
 base_url = f"{base_url_parts.scheme}://{base_url_parts.netloc}{base_url_parts.path}"
@@ -98,11 +100,11 @@ def fetch_url():
 
 
     try:
-        url, depth = url_queue.get(timeout=20)            
+        url, depth = url_queue.get(timeout=30)            
     except queue.Empty:
         return   
     
-    time.sleep(1)
+    time.sleep(2)
 
     try:
         response = requests.get(url,timeout = 5)
@@ -193,31 +195,30 @@ def get_all_links(html):
 url_queue.put((base_url,1))
 url_attempt.add(base_url)
 # Process each URL in the list until the maximum number of URLs is reached
-#with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
 
-for i in range(MAX_URLS):
-    fetch_url()
+        for i in range(MAX_URLS):
         # Fetch the URL and get its status code
-        #executor.submit(fetch_url)
+            executor.submit(fetch_url)
                 
 
-with open('fetch_foxnews.csv', 'w', newline='', encoding='utf-8') as file:
+with open(f'fetch_{news_site}.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
     writer.writerow(['URL', 'HTTP/HTTPS status code'])
     for url, status in url_attempt_with_status:
         writer.writerow([url, status])
 
-#Write the visit information to a CSV file
-with open('visit_foxnews.csv', 'w', newline='', encoding='utf-8') as file:
+# Write the visit information to a CSV file
+with open(f'visit_{news_site}.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
-    print('sum of outlinks:')
+    print('Sum of outlinks:')
     print(sum(outlinks_list))
     writer.writerow(['URL', 'Size (Bytes)', 'Outlinks Count', 'Content-Type'])
     for url, size, outlinks, content_type in zip(success_url_list, size_list, outlinks_list, content_type_list):
         writer.writerow([url, size, outlinks, content_type])
 
-#Write the encountered URLs to a CSV file
-with open('urls_foxnews.csv', 'w', newline='', encoding='utf-8') as file:
+# Write the encountered URLs to a CSV file
+with open(f'urls_{news_site}.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
     writer.writerow(['URL', 'Indicator'])
     for url in all_urls:
@@ -226,12 +227,12 @@ with open('urls_foxnews.csv', 'w', newline='', encoding='utf-8') as file:
         else:
             writer.writerow([url, 'N_OK'])
 
-with open('CrawlReport_foxnews.txt', 'w') as f:
+with open(f'CrawlReport_{news_site}.txt', 'w') as f:
     # Write personal information
     f.write("Name: Shuyuan Hu\n")
     f.write("USC ID: 2512145714\n")
-    f.write("News site crawled: foxnews.com\n")
-    f.write("Number of threads: 16\n\n")
+    f.write(f"News site crawled: {news_site}.com\n")
+    f.write("Number of threads: {}\n\n".format(n_threads))
 
     # Write fetch statistics
     f.write("Fetch Statistics\n")
