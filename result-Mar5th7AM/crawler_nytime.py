@@ -21,13 +21,11 @@ n_fetches_failed_or_aborted = 0
 n_total_URLs_extracted = 0
 
 # Set the maximum number of URLs to fetch
-MAX_URLS = 100
+MAX_URLS = 20000
 MAX_DEPTH = 16
 
 # Set the URL of the website to crawl
-origin_url = 'https://www.foxnews.com/'
-base_url_parts = urlparse(origin_url)
-base_url = f"{base_url_parts.scheme}://{base_url_parts.netloc}{base_url_parts.path}"
+base_url = 'https://www.nytimes.com/'
 
 all_urls = []
 unique_outside_urls = set()
@@ -36,8 +34,8 @@ HTTP_status_counter = Counter()
 content_type_counter = Counter()
 url_queue = queue.Queue()
 
-url_attempt = set()
-url_attempt_with_status = []
+url_attempted = set()
+url_attempted_with_status = []
 
 # Initialize lists to store visited URLs, their sizes, outlinks count, and content types
 success_url_list = []
@@ -47,10 +45,9 @@ content_type_list = []
 
 url_count = 0
 
-
 all_url_lock = threading.Lock()
-visit_url_lock = threading.Lock()
 success_url_lock = threading.Lock()
+attempted_url_lock = threading.Lock()
 
 # Define a function to check if a URL is valid and belongs to the website
 def is_inside(url):
@@ -96,28 +93,23 @@ def fetch_url():
        n_total_URLs_extracted, n_unique_URLs_extracted, n_unique_URLs_within, \
        n_unique_URLs_outside, url_count, url_queue, MAX_DEPTH
 
-
     try:
-        url, depth = url_queue.get(timeout=20)            
+        url, depth = url_queue.get(timeout=5)
     except queue.Empty:
         return   
     
-    time.sleep(1)
+    time.sleep(2)
 
-    try:
-        response = requests.get(url,timeout = 5)
-        # Do something with the response
-    except requests.exceptions.Timeout:
-        print('The request timed out.')
-        return
-   
+    response = requests.get(url,timeout=5)
+        
     status = response.status_code
 
-    with visit_url_lock:            
+    with attempted_url_lock:
+        url_attempted.add(url)
         url_count += 1
         print(url_count)
         n_fetches_attempted += 1
-        url_attempt_with_status.append((url,status))
+        url_attempted_with_status.append((url,status))
         status_text = status_codes._codes[status][0] if status in status_codes._codes else ''
         status_str = f"{status} {status_text}"
         HTTP_status_counter[status_str] += 1
@@ -135,16 +127,16 @@ def fetch_url():
             outlinks = get_all_links(response.content)
 
             with all_url_lock:                
-                for i in outlinks:
-                    all_urls.append(i)
-                    n_total_URLs_extracted += 1
-                    if is_inside(i):
-                        unique_inside_urls.add(i)
-                        if i not in url_attempt and depth <= MAX_DEPTH and is_valid_url(i):                                
-                            url_queue.put((i,depth+1))
-                            url_attempt.add(i)
-                    else:
-                        unique_outside_urls.add(i)
+                    for i in outlinks:
+                        all_urls.append(i)
+                        n_total_URLs_extracted += 1
+                        if is_inside(i):
+                            unique_inside_urls.add(i)
+                            with attempted_url_lock:
+                                if i not in url_attempted and depth <= MAX_DEPTH and is_valid_url(i):                                
+                                    url_queue.put((i,depth+1))
+                        else:
+                            unique_outside_urls.add(i)
 
         with success_url_lock:
             if 'text/html' not in content_type:
@@ -162,18 +154,16 @@ def fetch_url():
 
 def get_all_links(html):
     """
-    Parses the HTML content and returns all unique links in the content.
+    Parses the HTML content and returns all links in the content.
     """
     soup = BeautifulSoup(html, 'html.parser')
-    links = set()
+    links = []
     for tag in soup.select('[href]'):
         href = tag.get('href')
         if href is not None:
-            href = urljoin(base_url, href)            
-            url_parts = urlparse(href)
-            nomed_url = f"{url_parts.scheme}://{url_parts.netloc}{url_parts.path}"            
-            links.add(nomed_url)
-    return list(links)
+            href = urljoin(base_url, href)
+            links.append(href)
+    return links
 
 '''
 def get_all_links(html):
@@ -191,24 +181,24 @@ def get_all_links(html):
 '''
 # Add the base URL to the URL list
 url_queue.put((base_url,1))
-url_attempt.add(base_url)
-# Process each URL in the list until the maximum number of URLs is reached
-#with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
 
-for i in range(MAX_URLS):
-    fetch_url()
+# Process each URL in the list until the maximum number of URLs is reached
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+
+    for i in range(MAX_URLS):
+
         # Fetch the URL and get its status code
-        #executor.submit(fetch_url)
+        executor.submit(fetch_url)
                 
 
-with open('fetch_foxnews.csv', 'w', newline='', encoding='utf-8') as file:
+with open('fetch_nytimes.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
     writer.writerow(['URL', 'HTTP/HTTPS status code'])
-    for url, status in url_attempt_with_status:
+    for url, status in url_attempted_with_status:
         writer.writerow([url, status])
 
 #Write the visit information to a CSV file
-with open('visit_foxnews.csv', 'w', newline='', encoding='utf-8') as file:
+with open('visit_nytimes.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
     print('sum of outlinks:')
     print(sum(outlinks_list))
@@ -217,7 +207,7 @@ with open('visit_foxnews.csv', 'w', newline='', encoding='utf-8') as file:
         writer.writerow([url, size, outlinks, content_type])
 
 #Write the encountered URLs to a CSV file
-with open('urls_foxnews.csv', 'w', newline='', encoding='utf-8') as file:
+with open('urls_nytimes.csv', 'w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
     writer.writerow(['URL', 'Indicator'])
     for url in all_urls:
@@ -226,12 +216,12 @@ with open('urls_foxnews.csv', 'w', newline='', encoding='utf-8') as file:
         else:
             writer.writerow([url, 'N_OK'])
 
-with open('CrawlReport_foxnews.txt', 'w') as f:
+with open('CrawlReport_nytimes.txt', 'w') as f:
     # Write personal information
     f.write("Name: Shuyuan Hu\n")
     f.write("USC ID: 2512145714\n")
-    f.write("News site crawled: foxnews.com\n")
-    f.write("Number of threads: 16\n\n")
+    f.write("News site crawled: nytimes.com\n")
+    f.write("Number of threads: 4\n\n")
 
     # Write fetch statistics
     f.write("Fetch Statistics\n")
