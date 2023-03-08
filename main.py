@@ -24,7 +24,7 @@ n_total_URLs_extracted = 0
 # Set the maximum number of URLs to fetch
 MAX_URLS = 20000
 MAX_DEPTH = 16
-n_threads = 6
+n_threads = 4
 
 # Set the URL of the website to crawl
 news_site = 'foxnews'
@@ -98,13 +98,13 @@ def fetch_url():
     global n_fetches_attempted, n_fetches_succeeded, n_fetches_failed_or_aborted, \
        n_total_URLs_extracted, n_unique_URLs_extracted, n_unique_URLs_within, \
        n_unique_URLs_outside, url_count, url_queue, MAX_DEPTH
-    time.sleep(random.randint(2,3))
+    #time.sleep(1)
     
     if url_count >= 20000:
         return
 
     try:
-        url, depth = url_queue.get(timeout=30)            
+        url, depth = url_queue.get(timeout=10)            
     except queue.Empty:
         return   
     
@@ -202,7 +202,7 @@ url_attempt.add(base_url)
 with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
 
         #for i in range(MAX_URLS):
-        while url_count < MAX_URLS:
+        for i in range(MAX_URLS+1000):
         # Fetch the URL and get its status code
             executor.submit(fetch_url)
                 
