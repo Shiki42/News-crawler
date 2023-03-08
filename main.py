@@ -24,7 +24,7 @@ n_total_URLs_extracted = 0
 # Set the maximum number of URLs to fetch
 MAX_URLS = 20000
 MAX_DEPTH = 16
-n_threads = 4
+n_threads = 16
 
 # Set the URL of the website to crawl
 news_site = 'foxnews'
@@ -100,8 +100,9 @@ def fetch_url():
        n_unique_URLs_outside, url_count, url_queue, MAX_DEPTH
     #time.sleep(1)
     
-    if url_count >= 20000:
-        return
+    with visit_url_lock:
+        if url_count >= 20000:
+            return
 
     try:
         url, depth = url_queue.get(timeout=10)            
