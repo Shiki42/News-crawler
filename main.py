@@ -196,90 +196,93 @@ def get_all_links(html):
             links.append(href)
     return links
 '''
-# Add the base URL to the URL list
-url_queue.put((base_url,1))
-url_attempt.add(base_url)
-# Process each URL in the list until the maximum number of URLs is reached
-with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
 
-        #for i in range(MAX_URLS):
-        for i in range(MAX_URLS+1000):
-        # Fetch the URL and get its status code
-            executor.submit(fetch_url)
-                
+if __name__ == '__main__':
+    # Add the base URL to the URL list
+    url_queue.put((base_url,1))
+    url_attempt.add(base_url)
+    # Process each URL in the list until the maximum number of URLs is reached
+        
+    with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
 
-with open(f'fetch_{news_site}.csv', 'w', newline='', encoding='utf-8') as file:
-    writer = csv.writer(file)
-    writer.writerow(['URL', 'HTTP/HTTPS status code'])
-    for url, status in url_attempt_with_status:
-        writer.writerow([url, status])
+            #for i in range(MAX_URLS):
+            for i in range(MAX_URLS+1000):
+            # Fetch the URL and get its status code
+                executor.submit(fetch_url)
+                    
 
-# Write the visit information to a CSV file
-with open(f'visit_{news_site}.csv', 'w', newline='', encoding='utf-8') as file:
-    writer = csv.writer(file)
-    print('Sum of outlinks:')
-    print(sum(outlinks_list))
-    writer.writerow(['URL', 'Size (Bytes)', 'Outlinks Count', 'Content-Type'])
-    for url, size, outlinks, content_type in zip(success_url_list, size_list, outlinks_list, content_type_list):
-        writer.writerow([url, size, outlinks, content_type])
+    with open(f'fetch_{news_site}.csv', 'w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(['URL', 'HTTP/HTTPS status code'])
+        for url, status in url_attempt_with_status:
+            writer.writerow([url, status])
 
-# Write the encountered URLs to a CSV file
-with open(f'urls_{news_site}.csv', 'w', newline='', encoding='utf-8') as file:
-    writer = csv.writer(file)
-    writer.writerow(['URL', 'Indicator'])
-    for url in all_urls:
-        if is_inside(url):
-            writer.writerow([url, 'OK'])
-        else:
-            writer.writerow([url, 'N_OK'])
+    # Write the visit information to a CSV file
+    with open(f'visit_{news_site}.csv', 'w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        print('Sum of outlinks:')
+        print(sum(outlinks_list))
+        writer.writerow(['URL', 'Size (Bytes)', 'Outlinks Count', 'Content-Type'])
+        for url, size, outlinks, content_type in zip(success_url_list, size_list, outlinks_list, content_type_list):
+            writer.writerow([url, size, outlinks, content_type])
 
-with open(f'CrawlReport_{news_site}.txt', 'w') as f:
-    # Write personal information
-    f.write("Name: Shuyuan Hu\n")
-    f.write("USC ID: 2512145714\n")
-    f.write(f"News site crawled: {news_site}.com\n")
-    f.write("Number of threads: {}\n\n".format(n_threads))
+    # Write the encountered URLs to a CSV file
+    with open(f'urls_{news_site}.csv', 'w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(['URL', 'Indicator'])
+        for url in all_urls:
+            if is_inside(url):
+                writer.writerow([url, 'OK'])
+            else:
+                writer.writerow([url, 'N_OK'])
 
-    # Write fetch statistics
-    f.write("Fetch Statistics\n")
-    f.write("================\n")
-    f.write("# fetches attempted: {}\n".format(n_fetches_attempted))
-    f.write("# fetches succeeded: {}\n".format(n_fetches_succeeded))
-    f.write("# fetches failed or aborted: {}\n\n".format(n_fetches_failed_or_aborted))
+    with open(f'CrawlReport_{news_site}.txt', 'w') as f:
+        # Write personal information
+        f.write("Name: Shuyuan Hu\n")
+        f.write("USC ID: 2512145714\n")
+        f.write(f"News site crawled: {news_site}.com\n")
+        f.write("Number of threads: {}\n\n".format(n_threads))
 
-    # Write outgoing URLs
-    f.write("Outgoing URLs:\n")
-    f.write("==============\n")
-    f.write("Total URLs extracted: {}\n".format(n_total_URLs_extracted))
-    f.write("# unique URLs extracted: {}\n".format(len(unique_inside_urls)+len(unique_outside_urls)))
-    f.write("# unique URLs within News Site: {}\n".format(len(unique_inside_urls)))
-    f.write("# unique URLs outside News Site: {}\n\n".format(len(unique_outside_urls)))
+        # Write fetch statistics
+        f.write("Fetch Statistics\n")
+        f.write("================\n")
+        f.write("# fetches attempted: {}\n".format(n_fetches_attempted))
+        f.write("# fetches succeeded: {}\n".format(n_fetches_succeeded))
+        f.write("# fetches failed or aborted: {}\n\n".format(n_fetches_failed_or_aborted))
 
-    # Write status codes
-    f.write("Status Codes:\n")
-    f.write("=============\n")
-    for code, count in HTTP_status_counter.items():
-        f.write("{}: {}\n".format(code, count))
-    f.write("\n")
+        # Write outgoing URLs
+        f.write("Outgoing URLs:\n")
+        f.write("==============\n")
+        f.write("Total URLs extracted: {}\n".format(n_total_URLs_extracted))
+        f.write("# unique URLs extracted: {}\n".format(len(unique_inside_urls)+len(unique_outside_urls)))
+        f.write("# unique URLs within News Site: {}\n".format(len(unique_inside_urls)))
+        f.write("# unique URLs outside News Site: {}\n\n".format(len(unique_outside_urls)))
 
-    # Write file sizes
-    f.write("File Sizes:\n")
-    f.write("===========\n")
-    size_ranges = [
-        ("< 1KB", lambda size: size < 1024),
-        ("1KB ~ <10KB", lambda size: 1024 <= size < 10240),
-        ("10KB ~ <100KB", lambda size: 10240 <= size < 102400),
-        ("100KB ~ <1MB", lambda size: 102400 <= size < 1048576),
-        (">= 1MB", lambda size: size >= 1048576)
-    ]
-    for name, size_range in size_ranges:
-        count = sum(1 for size in size_list if size_range(size))
-        f.write("{}: {}\n".format(name, count))
-    f.write("\n")
+        # Write status codes
+        f.write("Status Codes:\n")
+        f.write("=============\n")
+        for code, count in HTTP_status_counter.items():
+            f.write("{}: {}\n".format(code, count))
+        f.write("\n")
 
-    # Write content types
-    f.write("Content Types:\n")
-    f.write("===============\n")
-    for content_type, count in content_type_counter.items():
-        f.write("{}: {}\n".format(content_type, count))
-    f.write("\n")
+        # Write file sizes
+        f.write("File Sizes:\n")
+        f.write("===========\n")
+        size_ranges = [
+            ("< 1KB", lambda size: size < 1024),
+            ("1KB ~ <10KB", lambda size: 1024 <= size < 10240),
+            ("10KB ~ <100KB", lambda size: 10240 <= size < 102400),
+            ("100KB ~ <1MB", lambda size: 102400 <= size < 1048576),
+            (">= 1MB", lambda size: size >= 1048576)
+        ]
+        for name, size_range in size_ranges:
+            count = sum(1 for size in size_list if size_range(size))
+            f.write("{}: {}\n".format(name, count))
+        f.write("\n")
+
+        # Write content types
+        f.write("Content Types:\n")
+        f.write("===============\n")
+        for content_type, count in content_type_counter.items():
+            f.write("{}: {}\n".format(content_type, count))
+        f.write("\n")
